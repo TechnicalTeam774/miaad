@@ -1,0 +1,22 @@
+{
+  "name": "miaad",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ميعاد — daily tasks with times, countdowns, reminders, focus timer and log",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "android": "node build.mjs && npx cap sync android",
+    "test": "node --test test/time.test.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/local-notifications": "8.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3",
+    "esbuild": "0.28.2"
+  }
+}

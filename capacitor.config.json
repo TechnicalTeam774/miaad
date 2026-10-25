@@ -1,0 +1,18 @@
+{
+  "appId": "app.miaad.tasks",
+  "appName": "ميعاد",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#F3F5F9"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_miaad",
+      "iconColor": "#2F6BFF"
+    },
+    "SystemBars": {
+      "insetsHandling": "css",
+      "initialViewportFitValueHint": "cover"
+    }
+  }
+}
