@@ -1,7 +1,8 @@
 # Miaad (ميعاد): runs on every change to the main branch, or from Actions → "Build Miaad" → Run workflow.
 #   web     → builds the web app and publishes it on GitHub Pages (open it on iPhone or Android and add it to the home screen)
 #   android → builds a signed Android APK and attaches it to a new Release (repo home page → Releases → Assets)
-# Needs once: Settings → Pages → Source = GitHub Actions, and two Actions secrets: KEYSTORE_B64 and KEYSTORE_PASSWORD.
+# Needs once: Settings → Pages → Source = GitHub Actions, and four Actions secrets:
+#   KEYSTORE_B64, KEYSTORE_PASSWORD (signing key), FIREBASE_WEB_CONFIG, GOOGLE_SERVICES_JSON (Google sign-in and sync).
 name: Build Miaad
 
 on:
@@ -33,7 +34,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - run: npm run build
+      - name: Build
+        env:
+          FIREBASE_WEB_CONFIG: ${{ secrets.FIREBASE_WEB_CONFIG }}
+        run: |
+          if [ -z "$FIREBASE_WEB_CONFIG" ]; then
+            echo "::warning title=No Firebase config::FIREBASE_WEB_CONFIG is not set, so this web build has no Google sign-in (tasks stay on each device)."
+          fi
+          npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
@@ -48,13 +56,20 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Check the signing secrets
+      - name: Check the secrets
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          FIREBASE_WEB_CONFIG: ${{ secrets.FIREBASE_WEB_CONFIG }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
-            echo "::error title=Signing secrets missing::Add KEYSTORE_B64 and KEYSTORE_PASSWORD in Settings → Secrets and variables → Actions, then run this workflow again."
+          missing=""
+          [ -z "$KEYSTORE_B64" ] && missing="$missing KEYSTORE_B64"
+          [ -z "$KEYSTORE_PASSWORD" ] && missing="$missing KEYSTORE_PASSWORD"
+          [ -z "$FIREBASE_WEB_CONFIG" ] && missing="$missing FIREBASE_WEB_CONFIG"
+          [ -z "$GOOGLE_SERVICES_JSON" ] && missing="$missing GOOGLE_SERVICES_JSON"
+          if [ -n "$missing" ]; then
+            echo "::error title=Secrets missing::Add these in Settings → Secrets and variables → Actions:$missing. Then run this workflow again."
             exit 1
           fi
 
@@ -70,7 +85,10 @@ jobs:
 
       - run: npm ci
       - run: npm test
-      - run: npm run build
+      - name: Build the web part
+        env:
+          FIREBASE_WEB_CONFIG: ${{ secrets.FIREBASE_WEB_CONFIG }}
+        run: npm run build
 
       - name: Create the Android project
         run: |
@@ -87,11 +105,19 @@ jobs:
           echo "::add-mask::$PASS"
           printf '%s' "$KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/miaad.p12"
           if ! keytool -list -storetype PKCS12 -keystore "$RUNNER_TEMP/miaad.p12" -storepass "$PASS" -alias miaad > /dev/null 2>&1; then
-            echo "::error title=Signing key not readable::KEYSTORE_B64 or KEYSTORE_PASSWORD does not match the key file. Paste both values again exactly as they appear in miaad-secrets.txt."
+            echo "::error title=Signing key not readable::KEYSTORE_B64 or KEYSTORE_PASSWORD does not match the key file. Paste both values again exactly as they appear in the two text files."
             exit 1
           fi
           echo "MIAAD_KEYSTORE=$RUNNER_TEMP/miaad.p12" >> "$GITHUB_ENV"
           echo "MIAAD_STORE_PASSWORD=$PASS" >> "$GITHUB_ENV"
+
+      - name: Add the Firebase file
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          SHA1=$(keytool -list -v -storetype PKCS12 -keystore "$MIAAD_KEYSTORE" -storepass "$MIAAD_STORE_PASSWORD" -alias miaad | grep -m1 'SHA1:' | awk '{print $2}')
+          node scripts/check-google-services.mjs android/app/google-services.json "$SHA1"
 
       - name: Build the signed APK
         working-directory: android
@@ -112,4 +138,4 @@ jobs:
             **التثبيت على أندرويد:** نزّل الملف `miaad-1.0.${{ github.run_number }}.apk` من **Assets** تحت، وافتحه من الموبايل.
             - أول مرة: الموبايل هيطلب إذن «تثبيت تطبيقات غير معروفة» للمتصفح أو مدير الملفات، اسمح بيه للتثبيت ده.
             - تحديث: ثبّت الملف الجديد فوق القديم من غير ما تمسح التطبيق، ومهامك بتفضل زي ما هي.
-            - بعد التثبيت: اسمح بالإشعارات، ومن إعدادات التطبيق فعّل «المنبّهات والتذكيرات» عشان التنبيه ييجي في ميعاده بالظبط.
+            - بعد التثبيت: ادخل بحساب جوجل عشان مهامك تتزامن، واسمح بالإشعارات، ومن إعدادات التطبيق فعّل «المنبهات والتذكيرات».
