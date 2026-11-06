@@ -1,0 +1,83 @@
+# Upload miaad-repo-vN.zip (commit message with [skip ci]), then Actions > Apply update > Run workflow.
+# Puts every file of the zip in its place, removes the zip and starts the build. Never changes .github.
+name: Apply update
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: apply-update
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Unpack the update
+        run: |
+          ZIP=$(find . -maxdepth 1 -name 'miaad-repo*.zip' -printf '%f\n' | sort -V | tail -n 1)
+          if [ -z "$ZIP" ]; then
+            echo "::error title=No update file::Upload miaad-repo-vN.zip to the repository first, then run this again."
+            exit 1
+          fi
+          echo "Using $ZIP"
+          mkdir -p "$RUNNER_TEMP/new"
+          unzip -q "$ZIP" -d "$RUNNER_TEMP/new"
+          if [ ! -f "$RUNNER_TEMP/new/miaad/package.json" ]; then
+            echo "::error title=Unexpected file::$ZIP does not contain the miaad folder."
+            exit 1
+          fi
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+
+      - name: Compare the workflow files
+        run: |
+          changed=""
+          for f in "$RUNNER_TEMP"/new/miaad/.github/workflows/*; do
+            [ -f "$f" ] || continue
+            name=$(basename "$f")
+            # same text after line endings and trailing spaces are ignored
+            if ! python3 - "$f" ".github/workflows/$name" <<'PY'
+          import sys, os
+          def norm(p):
+              if not os.path.exists(p):
+                  return None
+              text = open(p, encoding='utf-8', errors='replace').read().replace('\r\n', '\n')
+              return '\n'.join(line.rstrip() for line in text.split('\n')).strip()
+          sys.exit(0 if norm(sys.argv[1]) == norm(sys.argv[2]) else 1)
+          PY
+            then
+              changed="${changed:+$changed, }$name"
+            fi
+          done
+          echo "WORKFLOWS_CHANGED=$changed" >> "$GITHUB_ENV"
+          if [ -n "$changed" ]; then
+            echo "::warning title=Update by hand::The update has a newer version of $changed in .github/workflows. Edit it on GitHub (paste the new content); saving it starts the build."
+          fi
+
+      - name: Replace the app files
+        run: |
+          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name .github -exec rm -rf {} +
+          (cd "$RUNNER_TEMP/new/miaad" && find . -mindepth 1 -maxdepth 1 ! -name .github -exec cp -a {} "$GITHUB_WORKSPACE/" \;)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing to change."
+          else
+            git diff --cached --stat | tail -n 1
+            git commit -q -m "Apply $ZIP"
+            git push
+          fi
+
+      - name: Start the build
+        if: env.WORKFLOWS_CHANGED == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build.yml --ref "${{ github.ref_name }}"
