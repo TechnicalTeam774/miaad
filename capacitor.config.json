@@ -13,6 +13,20 @@
     "SystemBars": {
       "insetsHandling": "css",
       "initialViewportFitValueHint": "cover"
+    },
+    "FirebaseAuthentication": {
+      "skipNativeAuth": true,
+      "providers": [
+        "google.com"
+      ]
+    },
+    "BackgroundRunner": {
+      "label": "app.miaad.tasks.sync",
+      "src": "runners/sync.js",
+      "event": "sync",
+      "repeat": true,
+      "interval": 15,
+      "autoStart": true
     }
   }
 }

@@ -3,6 +3,7 @@ import { build } from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { parseFirebaseConfig } from './scripts/firebase-config.mjs';
 
 const OUT = 'www';
 const PREVIEW = 'preview';
@@ -12,14 +13,40 @@ fs.mkdirSync(OUT, { recursive: true });
 // same numbering as the APK (android/app/build.gradle): 1.0.<GitHub Actions run number>
 const APP_VERSION = `1.0.${process.env.GITHUB_RUN_NUMBER || '0'}`;
 
+let configText = process.env.FIREBASE_WEB_CONFIG || '';
+if (!configText && fs.existsSync('firebase.local.txt')) configText = fs.readFileSync('firebase.local.txt', 'utf8');
+const FIREBASE = parseFirebaseConfig(configText);
+if (configText && !FIREBASE) {
+  console.error('FIREBASE_WEB_CONFIG is set but apiKey / authDomain / projectId / appId could not be read from it.');
+  process.exit(1);
+}
+console.log(FIREBASE ? `firebase: project ${FIREBASE.projectId}` : 'firebase: no config, sign-in hidden (local-only build)');
+
 await build({
   entryPoints: ['src/main.js'],
   bundle: true,
   minify: true,
-  define: { __APP_VERSION__: JSON.stringify(APP_VERSION) },
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+    __FIREBASE_CONFIG__: JSON.stringify(FIREBASE),
+    'process.env.NODE_ENV': '"production"',
+  },
+  alias: { re2js: './src/stubs/re2js.js' },
   format: 'iife',
   target: ['es2020', 'safari15'],
   outfile: `${OUT}/app.js`,
+  legalComments: 'none',
+  logLevel: 'warning',
+});
+
+// background runner (Android): its own small bundle, run outside the web view
+await build({
+  entryPoints: ['src/runner-main.js'],
+  bundle: true,
+  minify: false,
+  format: 'iife',
+  target: ['es2020'],
+  outfile: `${OUT}/runners/sync.js`,
   legalComments: 'none',
   logLevel: 'warning',
 });
@@ -54,7 +81,8 @@ const files = [];
 const hash = crypto.createHash('sha256');
 for (const f of files.sort()) hash.update(fs.readFileSync(f));
 const version = hash.digest('hex').slice(0, 10);
-const assets = ['./', ...files.map((f) => path.relative(OUT, f).split(path.sep).join('/')).filter((f) => !f.endsWith('icon.svg'))];
+const assets = ['./', ...files.map((f) => path.relative(OUT, f).split(path.sep).join('/'))
+  .filter((f) => !f.endsWith('icon.svg') && !f.startsWith('runners/'))];
 const sw = fs.readFileSync('static/sw.js', 'utf8').replace('__VERSION__', version).replace('__ASSETS__', JSON.stringify(assets));
 fs.writeFileSync(`${OUT}/sw.js`, sw);
 

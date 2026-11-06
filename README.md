@@ -1,137 +1,116 @@
 # ميعاد — مهامك بمواعيدها
 
 تطبيق لمهام اليوم. كل مهمة ليها ميعاد وعدّ تنازلي لحد وقتها، ولو الميعاد عدّى بيبان «متأخرة بقالها كذا».
-فيه تنبيه قبل الميعاد، وتكرار (كل يوم، كل أسبوع، أو أيام تختارها)، وتايمر تركيز، وسجل بنسبة الإنجاز.
-بياناتك متخزنة على الموبايل بس: مفيش حساب ولا سيرفر.
+فيه تنبيه قبل الميعاد، وتكرار، وتايمر تركيز، وسجل بنسبة الإنجاز، وملخص الصبح، وتذكير آخر اليوم.
+الدخول بحساب جوجل اختياري: اللي يدخل مهامه تتحفظ في حسابه وتتزامن بين الموبايل واللاب توب، واللي ميدخلش مهامه تفضل على جهازه بس.
 
-| | APK أندرويد | نسخة الويب (آيفون وأي موبايل) |
+| | APK أندرويد | نسخة الويب (لاب توب، آيفون، أي موبايل) |
 |---|---|---|
+| الدخول بجوجل والمزامنة | ✅ | ✅ |
 | التنبيه والتطبيق مقفول | ✅ | ❌ بيوصل والتطبيق مفتوح بس |
+| مهام من جهاز تاني توصل والتطبيق مقفول | ✅ كل ربع ساعة تقريباً | ❌ |
 | زرار «تم» و«أجّل 10 د» في الإشعار | ✅ | ❌ |
-| التثبيت | ملف من Releases | من المتصفح: إضافة للشاشة الرئيسية |
 | التحديث | تنزّل الإصدار الجديد وتثبّته فوق القديم | لوحده |
 
-## اللي محتاجه
+## المكونات
 
-1. حساب GitHub **شخصي** (مجاني)، مش حساب الشغل.
-2. `miaad-repo.zip`: فكّه، هيطلعلك فولدر اسمه `miaad`.
-3. `miaad-signing-key-PRIVATE.zip`: فكّه وخليه عندك بس، فيه مفتاح توقيع التطبيق.
+- **GitHub**: فيه الكود، وبيبني التطبيق لوحده (Actions)، وبينشر نسخة الويب (Pages)، وبيحط ملف الـ APK في Releases.
+- **Firebase** (من جوجل، مجاني): الدخول بحساب جوجل، وقاعدة البيانات اللي بتتزامن منها المهام.
+- **أسرار GitHub** (Settings ← Secrets and variables ← Actions)، أربعة:
 
-## الإعداد (مرة واحدة · حوالي 15 دقيقة من الكمبيوتر)
+| الاسم | جاي منين |
+|---|---|
+| `KEYSTORE_B64` | ملف `1-KEYSTORE_B64.txt` في فولدر المفتاح |
+| `KEYSTORE_PASSWORD` | ملف `2-KEYSTORE_PASSWORD.txt` في فولدر المفتاح |
+| `FIREBASE_WEB_CONFIG` | كود الإعداد اللي Firebase بيعرضه لما تضيف تطبيق ويب |
+| `GOOGLE_SERVICES_JSON` | محتوى ملف `google-services.json` اللي بتنزّله من Firebase لتطبيق الأندرويد |
 
-### 1. اعمل الريبو
+## إعداد Firebase (مرة واحدة)
 
-1. ادخل github.com ← زرار **+** فوق ← **New repository**.
-2. **Repository name**: `miaad`
-3. اختار **Public**.
-   ليه؟ GitHub Pages مجاني للريبو العام بس. اللي بيبقى ظاهر هو كود التطبيق بس: مهامك عمرها ما بتترفع، والمفتاح بيتحط في Secrets ومحدش يقدر يشوفه.
-4. فعّل **Add README** ← **Create repository**.
+استخدم إيميلك الشخصي، مش إيميل الشغل.
 
-### 2. حط مفتاح التوقيع في Secrets
+1. **المشروع**: من `console.firebase.google.com` اعمل مشروع اسمه `miaad` (من غير Google Analytics).
+2. **الدخول بجوجل**: Authentication ← Sign-in method ← Google ← Enable ← اختار إيميلك ← Save.
+3. **الدومين**: Authentication ← Settings ← Authorized domains ← Add domain ← `technicalteam774.github.io`.
+4. **قاعدة البيانات**: Firestore Database ← Create database ← المكان `europe-west1` ← production mode. بعدها في تبويب Rules الصق محتوى ملف `firestore.rules` اللي في المشروع ← Publish.
+5. **تطبيق الويب**: Project settings ← Your apps ← أيقونة الويب ← اسم `miaad-web` ← Register. انسخ الكود اللي فيه `firebaseConfig` كله وحطه في سر `FIREBASE_WEB_CONFIG`.
+6. **تطبيق الأندرويد**: Project settings ← Add app ← Android ← اسم الباكدج `app.miaad.tasks`، وفي خانة SHA-1 الصق بصمة المفتاح:
+   ```
+   CC:97:6A:32:A5:98:75:3F:65:BE:2D:70:0C:81:4D:52:25:85:AA:6F
+   ```
+   ← Register ← نزّل `google-services.json`، وحط محتواه كله في سر `GOOGLE_SERVICES_JSON`.
 
-1. في الريبو: **Settings** ← **Secrets and variables** ← **Actions** ← **New repository secret**.
-2. **Name**: `KEYSTORE_B64` ← **Secret**: افتح `1-KEYSTORE_B64.txt` واعمل Ctrl+A ثم Ctrl+C والصق ← **Add secret**.
-3. **New repository secret** تاني ← **Name**: `KEYSTORE_PASSWORD` ← **Secret**: محتوى `2-KEYSTORE_PASSWORD.txt` ← **Add secret**.
+مهم: الخطوة 2 لازم تبقى قبل الخطوة 6، عشان الملف اللي بتنزّله يبقى فيه إعداد الدخول بجوجل.
 
-### 3. شغّل GitHub Pages
+## إعداد GitHub (مرة واحدة)
 
-**Settings** ← **Pages** ← تحت **Build and deployment** خلي **Source** = **GitHub Actions**.
+1. اعمل ريبو **Public** اسمه `miaad` على حسابك الشخصي.
+2. ضيف الأسرار الأربعة اللي فوق.
+3. Settings ← Pages ← Source = **GitHub Actions**.
+4. ارفع ملفات المشروع (Add file ← Upload files).
+5. لو فولدر `.github` مترفعش (الويندوز والماك ساعات بيخبّوه): Add file ← Create new file ← الاسم `.github/workflows/build.yml` ← الصق محتوى الملحق اللي في آخر الملف.
+6. تبويب Actions: لما الجزئين يبقوا ✅، رابط الويب بيبان تحت الجزء الأول، وملف الـ APK في Releases.
 
-### 4. ارفع ملفات المشروع
+## التثبيت والاستخدام
 
-1. ارجع لصفحة الريبو (تبويب **Code**) ← **Add file** ← **Upload files**.
-2. افتح فولدر `miaad`، حدد كل اللي جواه (Ctrl+A)، واسحبه على صفحة الرفع. الفولدرات بتترفع زي ما هي.
-3. **Commit changes**، واستنى لحد ما الرفع يخلص.
-
-### 5. اتأكد من ملف البناء
-
-في صفحة الريبو، شوف فيه فولدر اسمه `.github` ولا لأ:
-
-- **موجود**: البناء بدأ لوحده، روح للخطوة 6.
-- **مش موجود** (بيحصل على الماك، لأن الفولدرات اللي بتبدأ بنقطة بتبقى مخفية): **Add file** ← **Create new file** ← في خانة الاسم اكتب `.github/workflows/build.yml` ← الصق محتوى الملحق اللي في آخر الدليل ← **Commit changes**.
-
-### 6. استنى البناء (5 لـ 10 دقايق)
-
-تبويب **Actions** ← **Build Miaad**. فيه جزئين:
-
-- **Web app (GitHub Pages)**: لما يبقى ✅ رابط التطبيق بيظهر تحته، وكمان في **Settings ← Pages**. شكله: `https://USERNAME.github.io/miaad/` (USERNAME هو اسم حسابك على GitHub).
-- **Android APK (Releases)**: لما يبقى ✅ ملف الـ APK بيظهر في **Releases** على يمين صفحة الريبو.
-
-لو ظهر ❌ شوف «مشاكل وحلولها» تحت.
-
-## التثبيت على الموبايل
-
-### أندرويد (الأفضل)
-
-1. من الموبايل افتح صفحة الريبو ← **Releases** ← آخر إصدار ← تحت **Assets** دوس على `miaad-1.0.X.apk`.
-2. افتح الملف بعد ما يتحمّل. لو طلب إذن **Install unknown apps** للمتصفح أو مدير الملفات، اسمح بيه.
-3. لو Google Play Protect طلّع تحذير: **More details** ← **Install anyway** (أو **Scan app** وبعدها التثبيت). ده بيحصل مع أي تطبيق مش من جوجل بلاي.
-4. أول ما تفتحه اسمح بالإشعارات. وفي تبويب **الإعدادات** جوه التطبيق، لو ظهرلك «فعّل المنبهات والتذكيرات» دوس **فعّلها** وشغّلها.
-5. شاومي وأوبو وريلمي وهواوي وسامسونج بيقفلوا التطبيقات في الخلفية. من إعدادات الموبايل ← التطبيقات ← ميعاد ← البطارية ← **بدون قيود** (وفي شاومي كمان فعّل **التشغيل التلقائي**). ده اللي بيضمن إن التنبيه ييجي في ميعاده.
-6. جرّب: **الإعدادات** ← **جرّب تنبيه**.
-
-### آيفون
-
-1. افتح الرابط من **سفاري** (لازم سفاري): `https://USERNAME.github.io/miaad/`
-2. زرار المشاركة ← **إضافة إلى الشاشة الرئيسية** ← **إضافة**.
-3. افتحه من الأيقونة اللي على الشاشة الرئيسية، مش من سفاري، عشان يشتغل كتطبيق.
-
-على الآيفون التنبيه بيوصل والتطبيق مفتوح بس. العدّ التنازلي والسجل والتايمر شغالين عادي.
-
-### أندرويد من غير APK
-
-كروم ← نفس الرابط ← القائمة ⋮ ← **تثبيت التطبيق**.
+- **أندرويد**: نزّل `miaad-1.0.X.apk` من Releases وثبّته (اسمح بتثبيت التطبيقات من المتصفح لو طلب). بعد الفتح: ادخل بجوجل، واسمح بالإشعارات، ومن الإعدادات فعّل «المنبهات والتذكيرات». في شاومي وأوبو وريلمي وسامسونج خلي بطارية التطبيق «بدون قيود».
+- **لاب توب**: افتح `https://technicalteam774.github.io/miaad/` وادخل بنفس حساب جوجل. من كروم تقدر تثبّته (القائمة ⋮ ← تثبيت التطبيق).
+- **آيفون**: نفس الرابط من سفاري ← مشاركة ← إضافة إلى الشاشة الرئيسية.
+- **أول دخول على جهاز عليه مهام**: المهام اللي على الجهاز بتتضاف لحسابك، ومفيش حاجة بتتمسح. الأمثلة مش بتترفع.
+- **تسجيل الخروج**: بيمسح المهام من الجهاز ده بس. هي محفوظة في الحساب وبترجع لما تدخل تاني.
 
 ## التحديثات
 
-- أي تعديل يترفع على الريبو بيعمل بناء جديد لوحده. رقم الإصدار بيزيد (1.0.1، 1.0.2، …) وبيبان في **الإعدادات ← عن التطبيق**.
-- **الويب**: بيتحدّث لوحده المرة الجاية اللي تفتح فيها التطبيق.
-- **APK**: نزّل الإصدار الجديد من Releases وثبّته **فوق** القديم. متمسحش التطبيق الأول، لأن المسح بيمسح مهامك.
+- أي تعديل يترفع على الريبو بيبني إصدار جديد لوحده (1.0.1، 1.0.2، …) وبيبان في الإعدادات ← عن التطبيق.
+- **الويب** بيتحدّث لوحده المرة الجاية اللي تفتحه فيها.
+- **APK**: نزّل الإصدار الجديد وثبّته **فوق** القديم. متمسحش التطبيق الأول.
 
-## النسخة الاحتياطية
+## التنبيهات
 
-بياناتك على الموبايل بس. من **الإعدادات ← نسخة احتياطية**:
+- قبل الميعاد (حسب اللي تختاره في المهمة)، وفي الميعاد، وبعده بربع ساعة لو لسه مخلصتش.
+- ملخص الصبح وتذكير آخر اليوم، ومواعيدهم بتتغير من الإعدادات.
+- على أندرويد، الموبايل بيشيّك على المهام الجديدة من أجهزتك التانية كل ربع ساعة تقريباً حتى لو التطبيق مقفول. لو خلّصت مهمة من اللاب توب، الموبايل ممكن يفكّرك بيها مرة لحد ما تفتح التطبيق عليه.
 
-- **APK**: دوس **انسخ النسخة** والصقها في رسالة لنفسك (واتساب أو إيميل). للاسترجاع: **الصق نسخة**.
-- **الويب**: **نزّل ملف** أو **انسخ النسخة**. للاسترجاع: **استرجع من ملف** أو **الصق نسخة**.
-- خد نسخة كل أسبوع، وقبل ما تغيّر الموبايل أو تمسح التطبيق.
-- نسخة الويب ونسخة الـ APK كل واحدة ليها بياناتها. اشتغل على واحدة بس، ولو عايز تنقل: انسخ من واحدة والصق في التانية.
+## مفتاح التوقيع
 
-## مفتاح التوقيع (`miaad-signing-key-PRIVATE.zip`)
-
-- ده اللي بيثبت إن التحديثات جاية منك. أندرويد مش بيقبل تحديث موقّع بمفتاح تاني.
-- احفظه في مكان شخصي آمن (Google Drive الشخصي أو مدير باسوردات). **مش** درايف الشغل، **ومتحطوش** في الريبو، ومتبعتوش لحد.
-- لو الملف ضاع والـ Secrets لسه في الريبو: البناء هيفضل شغال عادي.
-- لو الاتنين ضاعوا: نعمل مفتاح جديد، وساعتها لازم تمسح التطبيق القديم (بعد نسخة احتياطية) وتثبّت الجديد.
+- فولدر `miaad-signing-key-PRIVATE` هو اللي بيثبت إن التحديثات جاية منك، وأندرويد مش بيقبل تحديث بمفتاح تاني.
+- احفظه في مكان شخصي آمن، مش درايف الشغل، ومتحطوش في الريبو.
+- لو ضاع والأسرار لسه في GitHub، البناء هيفضل شغال. لو الاتنين ضاعوا: مفتاح جديد، وتمسح التطبيق القديم بعد ما تتأكد إن مهامك متزامنة مع حسابك.
 
 ## مشاكل وحلولها
 
-| اللي ظهر | الحل |
+| اللي ظهر في Actions | الحل |
 |---|---|
-| ❌ `Signing secrets missing` | الخطوة 2 ناقصة. ضيف الـ Secrets الاتنين، وبعدين **Actions** ← آخر تشغيل ← **Re-run jobs** ← **Re-run failed jobs**. |
-| ❌ `Signing key not readable` | قيمة من الاتنين متنسختش صح. افتح الـ Secret ودوس ✏️ والصقها تاني من الملف، وبعدين **Re-run failed jobs**. |
-| ❌ في **Web app** والرسالة فيها `Pages` | الخطوة 3 ناقصة: **Source** = **GitHub Actions**، وبعدين **Re-run failed jobs**. |
-| مفيش **Releases** | استنى لحد ما **Android APK** يبقى ✅. |
-| «لم يتم تثبيت التطبيق» | فيه نسخة متثبتة قبل كده بمفتاح تاني. خد نسخة احتياطية، امسحها، وثبّت الجديدة. |
-| التنبيه بيتأخر أو مش بيوصل | الإشعارات + **المنبهات والتذكيرات** + البطارية **بدون قيود** (خطوة 4 و 5 في تثبيت أندرويد). |
-| الويب لسه بالشكل القديم | اقفل التطبيق خالص وافتحه تاني. |
+| `Secrets missing` | الرسالة بتقول أنهي سر ناقص. ضيفه، وبعدين آخر تشغيل ← Re-run jobs ← Re-run failed jobs. |
+| `Signing key not readable` | الصق `KEYSTORE_B64` و `KEYSTORE_PASSWORD` تاني من الملفين. |
+| `Google sign-in is not enabled yet` | فعّل Google في Authentication، ونزّل `google-services.json` تاني، وحدّث السر. |
+| `Signing key fingerprint missing in Firebase` | ضيف بصمة SHA-1 اللي فوق للتطبيق الأندرويد في Firebase، ونزّل الملف تاني، وحدّث السر. |
+| `Wrong Android app in google-services.json` | الملف لتطبيق تاني. لازم اسم الباكدج يبقى `app.miaad.tasks`. |
+| `FIREBASE_WEB_CONFIG is set but …` | الصق كود `firebaseConfig` كامل زي ما Firebase بيعرضه. |
+| خطأ في **Web app** فيه `Pages` | Settings ← Pages ← Source = GitHub Actions. |
 
-## جوجل بلاي (بعدين لو حبيت)
-
-- ينفع. حساب مطوّر شخصي برسوم مرة واحدة (25 دولار)، والحسابات الشخصية الجديدة لازم تعمل اختبار مغلق مع 12 مختبِر على الأقل لمدة 14 يوم متواصلين قبل ما التطبيق ينزل للكل.
-- جوجل بتطبّق «التحقق من المطوّر» حتى على التطبيقات اللي بتتثبت من بره جوجل بلاي: بدأ 30 سبتمبر 2026 في البرازيل وإندونيسيا وسنغافورة وتايلاند، وعالميًا في 2027. للاستخدام الشخصي فيه مسار **Limited distribution** من غير تحقق هوية لحد 20 جهاز. في مصر التثبيت شغال عادي دلوقتي.
+| اللي ظهر في التطبيق | الحل |
+|---|---|
+| «الدخول مكملش» على اللاب توب | اتأكد إن `technicalteam774.github.io` موجود في Authorized domains في Firebase. |
+| «الدخول مكملش» على الموبايل | اتأكد من بصمة SHA-1 في Firebase وإن السر `GOOGLE_SERVICES_JSON` متحدّث. |
+| «المزامنة واقفة» | قواعد Firestore مش متنشورة صح: الصق `firestore.rules` تاني ودوس Publish. |
+| التنبيه بيتأخر | الإشعارات + «المنبهات والتذكيرات» + البطارية «بدون قيود». |
 
 ## للمطوّرين
 
 ```bash
 npm ci
-npm test                 # منطق المواعيد والتكرار والإحصائيات
-npm run build            # www/ للويب + preview/miaad-preview.html صفحة واحدة
-python3 test/ui_flow.py  # تجربة الواجهة على مقاس موبايل (Playwright + سيرفر على www/)
-npx cap add android && node scripts/patch-android.mjs && npx cap sync android   # مشروع أندرويد لـ Android Studio
+npm test                                   # المنطق + المزامنة بين جهازين (Firebase وهمي) + الفحص في الخلفية
+npm run build                              # www/ للويب + preview/miaad-preview.html
+node test/build-fake.mjs                   # www-test/: التطبيق بـ Firebase وهمي لتجربة الدخول في المتصفح
+python3 test/ui_flow.py                    # الواجهة على مقاس موبايل (سيرفر على www/ بورت 8765)
+python3 test/ui_cloud.py                   # الدخول والمزامنة (سيرفر على www-test/ بورت 8767)
+npx cap add android && node scripts/patch-android.mjs && npx cap sync android
 ```
 
-`src/time.js` المنطق · `src/store.js` البيانات · `src/ui.js` الشاشات · `src/notify.js` التنبيهات · `src/main.js` التوصيل · `.github/workflows/build.yml` البناء.
+`src/time.js` المواعيد والتنبيهات · `src/store.js` البيانات · `src/syncdiff.js` شكل البيانات في الحساب · `src/cloud.js` الدخول والمزامنة · `src/runner.js` الفحص في الخلفية · `src/ui.js` الشاشات · `src/notify.js` الإشعارات · `src/main.js` التوصيل.
+
+بيانات كل حساب في Firestore: `users/{uid}` فيه المهام والإعدادات، و `users/{uid}/months/{YYYY-MM}` فيه اللي اتعمل والتأجيلات ودقايق التركيز. كل مهمة وكل علامة «تم» حقل لوحدها، فجهازين بيعدّلوا حاجات مختلفة في نفس الوقت مش بيمسحوا شغل بعض.
 
 ## ملحق: محتوى `.github/workflows/build.yml`
 
@@ -139,7 +118,8 @@ npx cap add android && node scripts/patch-android.mjs && npx cap sync android   
 # Miaad (ميعاد): runs on every change to the main branch, or from Actions → "Build Miaad" → Run workflow.
 #   web     → builds the web app and publishes it on GitHub Pages (open it on iPhone or Android and add it to the home screen)
 #   android → builds a signed Android APK and attaches it to a new Release (repo home page → Releases → Assets)
-# Needs once: Settings → Pages → Source = GitHub Actions, and two Actions secrets: KEYSTORE_B64 and KEYSTORE_PASSWORD.
+# Needs once: Settings → Pages → Source = GitHub Actions, and four Actions secrets:
+#   KEYSTORE_B64, KEYSTORE_PASSWORD (signing key), FIREBASE_WEB_CONFIG, GOOGLE_SERVICES_JSON (Google sign-in and sync).
 name: Build Miaad
 
 on:
@@ -171,7 +151,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - run: npm run build
+      - name: Build
+        env:
+          FIREBASE_WEB_CONFIG: ${{ secrets.FIREBASE_WEB_CONFIG }}
+        run: |
+          if [ -z "$FIREBASE_WEB_CONFIG" ]; then
+            echo "::warning title=No Firebase config::FIREBASE_WEB_CONFIG is not set, so this web build has no Google sign-in (tasks stay on each device)."
+          fi
+          npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
@@ -186,13 +173,20 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Check the signing secrets
+      - name: Check the secrets
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          FIREBASE_WEB_CONFIG: ${{ secrets.FIREBASE_WEB_CONFIG }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
-            echo "::error title=Signing secrets missing::Add KEYSTORE_B64 and KEYSTORE_PASSWORD in Settings → Secrets and variables → Actions, then run this workflow again."
+          missing=""
+          [ -z "$KEYSTORE_B64" ] && missing="$missing KEYSTORE_B64"
+          [ -z "$KEYSTORE_PASSWORD" ] && missing="$missing KEYSTORE_PASSWORD"
+          [ -z "$FIREBASE_WEB_CONFIG" ] && missing="$missing FIREBASE_WEB_CONFIG"
+          [ -z "$GOOGLE_SERVICES_JSON" ] && missing="$missing GOOGLE_SERVICES_JSON"
+          if [ -n "$missing" ]; then
+            echo "::error title=Secrets missing::Add these in Settings → Secrets and variables → Actions:$missing. Then run this workflow again."
             exit 1
           fi
 
@@ -208,7 +202,10 @@ jobs:
 
       - run: npm ci
       - run: npm test
-      - run: npm run build
+      - name: Build the web part
+        env:
+          FIREBASE_WEB_CONFIG: ${{ secrets.FIREBASE_WEB_CONFIG }}
+        run: npm run build
 
       - name: Create the Android project
         run: |
@@ -225,11 +222,19 @@ jobs:
           echo "::add-mask::$PASS"
           printf '%s' "$KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/miaad.p12"
           if ! keytool -list -storetype PKCS12 -keystore "$RUNNER_TEMP/miaad.p12" -storepass "$PASS" -alias miaad > /dev/null 2>&1; then
-            echo "::error title=Signing key not readable::KEYSTORE_B64 or KEYSTORE_PASSWORD does not match the key file. Paste both values again exactly as they appear in miaad-secrets.txt."
+            echo "::error title=Signing key not readable::KEYSTORE_B64 or KEYSTORE_PASSWORD does not match the key file. Paste both values again exactly as they appear in the two text files."
             exit 1
           fi
           echo "MIAAD_KEYSTORE=$RUNNER_TEMP/miaad.p12" >> "$GITHUB_ENV"
           echo "MIAAD_STORE_PASSWORD=$PASS" >> "$GITHUB_ENV"
+
+      - name: Add the Firebase file
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          SHA1=$(keytool -list -v -storetype PKCS12 -keystore "$MIAAD_KEYSTORE" -storepass "$MIAAD_STORE_PASSWORD" -alias miaad | grep -m1 'SHA1:' | awk '{print $2}')
+          node scripts/check-google-services.mjs android/app/google-services.json "$SHA1"
 
       - name: Build the signed APK
         working-directory: android
@@ -250,5 +255,5 @@ jobs:
             **التثبيت على أندرويد:** نزّل الملف `miaad-1.0.${{ github.run_number }}.apk` من **Assets** تحت، وافتحه من الموبايل.
             - أول مرة: الموبايل هيطلب إذن «تثبيت تطبيقات غير معروفة» للمتصفح أو مدير الملفات، اسمح بيه للتثبيت ده.
             - تحديث: ثبّت الملف الجديد فوق القديم من غير ما تمسح التطبيق، ومهامك بتفضل زي ما هي.
-            - بعد التثبيت: اسمح بالإشعارات، ومن إعدادات التطبيق فعّل «المنبّهات والتذكيرات» عشان التنبيه ييجي في ميعاده بالظبط.
+            - بعد التثبيت: ادخل بحساب جوجل عشان مهامك تتزامن، واسمح بالإشعارات، ومن إعدادات التطبيق فعّل «المنبهات والتذكيرات».
 ```
