@@ -5,15 +5,16 @@ import {
   state, save, flush, onChange, saveTask, setDone, setUndone, removeTask, snooze, taskById, seedExamples,
   timerStart, timerPause, timerResume, timerAdd, timerStop, exportJSON, importJSON, resetAll,
 } from './store.js';
-import { dkey, addDays, plannedAlerts, nid, MIN, splitKey, isRecurring } from './time.js';
-import { t, fmtTime, fmtDur, fmtMins } from './i18n.js';
+import { dkey, addDays, plannedAlerts, digestPlan, nid, MIN, splitKey, isRecurring } from './time.js';
+import { t, fmtTime, fmtDur, fmtMins, nTasks } from './i18n.js';
 import {
   ui, renderShell, render, openSheet, closeSheet, refreshSheet, readForm, findOcc, toast, tickCountdowns,
 } from './ui.js';
 import {
   native, permission, requestPermission, exactAllowed, openExactSettings, setupNative, syncNative, testNative,
-  webNotify, webDue, chime, buzz, unlockAudio, logError,
+  webNotify, webDue, chime, buzz, unlockAudio, logError, onScheduled,
 } from './notify.js';
+import { initCloud, cloud, onCloud, cloudAvailable, signIn, signOut, runnerConfig } from './cloud.js';
 
 // ---------------------------------------------------------------- theme
 const mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
@@ -53,6 +54,21 @@ function alertPlan(from) {
     else body = `${t('lateTitle')} · ${t('late')} ${fmtDur(15 * MIN)}`;
     return { id: a.id, at: a.at, title: o.task.title, body, actions: true, extra: { occ: o.key, kind: a.kind } };
   });
+  for (const d of digestPlan(state, from, dkey(new Date(from)), 7)) {
+    let title;
+    let body;
+    if (d.kind === 'morning') {
+      title = t('morningTitle');
+      body = d.first
+        ? t('morningBodyFirst', nTasks(d.count), d.first.task.title, fmtTime(d.first.time))
+        : t('morningBody', nTasks(d.count));
+    } else {
+      const names = d.open.slice(0, 3).map((o) => t('q', o.task.title)).join(t('sep'));
+      title = t('eveningTitle', nTasks(d.count));
+      body = d.count > 3 ? t('eveningMore', names, d.count - 3) : names;
+    }
+    base.push({ id: d.id, at: d.at, title, body, channel: 'miaad_daily', actions: false, extra: { kind: d.kind, day: d.date } });
+  }
   const tm = state.timer;
   if (tm && tm.endsAt !== null && tm.endsAt > from) {
     const o = tm.occ ? findOcc(tm.occ) : null;
@@ -392,6 +408,29 @@ function onClick(e) {
       if (box && doImport(box.value)) closeSheet();
       break;
     }
+    case 'sign-in':
+      startSignIn();
+      break;
+    case 'go-settings':
+      ui.tab = 'settings';
+      render();
+      window.scrollTo(0, 0);
+      break;
+    case 'skip-sign-in':
+      state.meta.welcomed = true;
+      seedExamples(ui.today, Date.now(), t);
+      save();
+      render();
+      break;
+    case 'sign-out-ask':
+      openSheet({ type: 'signout' });
+      break;
+    case 'sign-out':
+      closeSheet();
+      ui.signingOut = true;
+      render();
+      signOut().finally(() => window.location.reload());
+      break;
     case 'reset-ask':
       openSheet({ type: 'reset' });
       break;
@@ -424,6 +463,10 @@ function onChangeEvt(e) {
   if (act === 'set-break') { state.settings.breakMin = Number(el.value); save(); return; }
   if (act === 'set-nag') { state.settings.nag = el.checked; save(); return; }
   if (act === 'set-sound') { state.settings.sound = el.checked; save(); return; }
+  if (act === 'set-morning') { state.settings.morning = el.checked; save(); return; }
+  if (act === 'set-evening') { state.settings.evening = el.checked; save(); return; }
+  if (act === 'set-morning-at' && el.value) { state.settings.morningAt = el.value; save(); return; }
+  if (act === 'set-evening-at' && el.value) { state.settings.eveningAt = el.value; save(); return; }
   if (act === 'import-file') {
     const f = el.files && el.files[0];
     if (!f) return;
@@ -512,11 +555,51 @@ function scheduleRender() {
   });
 }
 
-async function boot() {
-  applyTheme();
-  renderShell();
-  seedExamples(ui.today, Date.now(), t);
+function startSignIn() {
+  if (ui.signingIn) return;
+  ui.signingIn = true;
   render();
+  // on success the account listener takes over (merge, live sync, toast)
+  signIn().catch((e) => {
+    ui.signingIn = false;
+    render();
+    const msg = `${(e && e.code) || ''} ${(e && e.message) || ''}`;
+    if (/cancel|closed-by-user|popup-closed/i.test(msg)) return;
+    logError('sign-in', e);
+    toast(t('signInFail'), null, 7000);
+  });
+}
+
+// settings can change on another device: re-apply look and language when they do
+let lastLook = '';
+function lookChanged() {
+  const s = state.settings;
+  const look = `${s.lang}|${s.theme}|${s.accent}`;
+  if (look === lastLook) return;
+  const langChanged = lastLook && lastLook.split('|')[0] !== s.lang;
+  lastLook = look;
+  applyTheme();
+  if (langChanged) renderShell();
+}
+
+async function boot() {
+  initCloud(logError);
+  applyTheme();
+  lastLook = `${state.settings.lang}|${state.settings.theme}|${state.settings.accent}`;
+  renderShell();
+  // with sign-in available, examples wait until the first-run screen is answered
+  // never on a device linked to an account: its list is the account's list
+  if (!state.meta.syncUid && (!cloudAvailable || state.meta.welcomed)) seedExamples(ui.today, Date.now(), t);
+  render();
+  onCloud((c) => {
+    if (c.user && ui.signingIn) {
+      ui.signingIn = false;
+      toast(t('signedIn', c.user.email || c.user.name));
+    }
+    lookChanged();
+    render();
+  });
+  onScheduled((plan) => runnerConfig(plan));
   document.addEventListener('click', onClick);
   document.addEventListener('change', onChangeEvt);
   document.addEventListener('submit', onSubmit);
@@ -528,12 +611,22 @@ async function boot() {
     if (document.visibilityState === 'hidden') flush();
     else { tick(); render(); }
   });
-  onChange(() => { planDirty = true; scheduleRender(); resync(); });
+  onChange(() => { planDirty = true; lookChanged(); scheduleRender(); resync(); });
   setInterval(tick, 1000);
   await refreshPermission();
   render();
   if (native) {
-    await setupNative({ channelTasks: t('notifications'), channelFocus: t('focusTitle'), done: t('actDone'), snooze: t('actSnooze') }, (actionId, extra) => {
+    await setupNative({
+      channelTasks: t('notifications'), channelFocus: t('focusTitle'), channelDaily: t('dailyChannel'), done: t('actDone'), snooze: t('actSnooze'),
+    }, (actionId, extra) => {
+      if (extra.day) {
+        // daily summary: open that day
+        ui.tab = 'today';
+        ui.date = extra.day < ui.today ? ui.today : extra.day;
+        closeSheet();
+        render();
+        return;
+      }
       if (!extra.occ) return;
       if (actionId === 'done') { setDone(extra.occ, Date.now()); return; }
       if (actionId === 'snooze') { const o = findOcc(extra.occ); if (o) snooze(o, 10); return; }

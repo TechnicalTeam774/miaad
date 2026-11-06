@@ -9,6 +9,7 @@ import {
 import { t, lang, dir, fmtTime, fmtClock, fmtDay, relDay, fmtDur, fmtMins } from './i18n.js';
 import { icon } from './icons.js';
 import { native, getErrors } from './notify.js';
+import { cloud, cloudAvailable } from './cloud.js';
 
 /* global __APP_VERSION__ */
 // set by build.mjs (1.0.<GitHub build number>); same number as the Android versionName
@@ -119,11 +120,23 @@ export function renderShell() {
     <div class="toasts" id="toasts" aria-live="polite"></div>`;
 }
 
+/** First run with sign-in available: ask before anything else (skippable). */
+export function showWelcome() {
+  return cloudAvailable && !state.meta.welcomed && !state.meta.syncUid && !cloud.user && !ui.signingOut;
+}
+
 export function render() {
   const now = Date.now();
   ui.today = dkey(new Date(now));
   const view = $('#view');
   if (!view) return;
+  const welcome = showWelcome();
+  document.body.classList.toggle('is-welcome', welcome);
+  if (welcome) {
+    view.innerHTML = viewWelcome();
+    view.dataset.view = 'welcome';
+    return;
+  }
   const views = { today: viewToday, focus: viewFocus, log: viewLog, settings: viewSettings };
   view.innerHTML = (views[ui.tab] || viewToday)(now);
   view.dataset.view = ui.tab;
@@ -138,6 +151,72 @@ export function render() {
 export function statusSignature(now) {
   const list = dayList(state, ui.date, ui.today);
   return list.map((o) => `${o.key}:${status(o, now).s}`).join(',') + `|${ui.today}`;
+}
+
+// ---------------------------------------------------------------- welcome and account
+function viewWelcome() {
+  const busy = ui.signingIn;
+  return `<section class="welcome">
+    <img class="w-logo" src="icons/icon-192.png" alt="" width="84" height="84">
+    <h1>${esc(t('welcomeTitle'))}</h1>
+    <p class="w-sub">${esc(t('welcomeSub'))}</p>
+    <div class="w-card">
+      <p class="w-lead">${esc(t('welcomeSync'))}</p>
+      <ul class="w-points">${t('welcomePoints').map((p, i) => `<li>${icon(['shield', 'sync', 'user'][i] || 'check')}<span>${esc(p)}</span></li>`).join('')}</ul>
+      <button class="btn primary w-go" data-act="sign-in" ${busy ? 'disabled' : ''}>${icon('user')}${esc(busy ? t('signingIn') : t('signInGoogle'))}</button>
+    </div>
+    <button class="btn ghost w-skip" data-act="skip-sign-in" ${busy ? 'disabled' : ''}>${esc(t('skipSignIn'))}</button>
+    <p class="note w-note">${esc(t('skipNote'))}</p>
+  </section>`;
+}
+
+function syncText() {
+  switch (cloud.status) {
+    case 'loading': return t('syncLoading');
+    case 'syncing': return t('syncSyncing');
+    case 'offline': return t('syncOffline');
+    case 'error': return t('syncError');
+    case 'synced': return `${t('syncSynced')}${cloud.lastSync ? ` · ${fmtClock(cloud.lastSync)}` : ''}`;
+    default: return '';
+  }
+}
+
+/** Small cloud button in the Today header: sync state at a glance, opens Settings. */
+function syncChip() {
+  if (!cloudAvailable || !cloud.user) return '';
+  return `<button class="sync-chip s-${esc(cloud.status)}" data-act="go-settings" aria-label="${esc(syncText())}" title="${esc(syncText())}">${icon('cloud')}<i></i></button>`;
+}
+
+function accountCard() {
+  if (!cloudAvailable) return '';
+  const head = `<h3 class="g-h">${esc(t('account'))}</h3>`;
+  if (cloud.user) {
+    const u = cloud.user;
+    const initial = (u.name || u.email || '?').trim().charAt(0).toUpperCase();
+    const avatar = u.photo
+      ? `<img class="av" src="${esc(u.photo)}" alt="" referrerpolicy="no-referrer" width="44" height="44">`
+      : `<span class="av">${esc(initial)}</span>`;
+    return `${head}<section class="card set acct">
+      <div class="acct-row">${avatar}<div class="acct-who"><b>${esc(u.name || u.email)}</b><span class="num">${esc(u.email)}</span></div></div>
+      <div class="row"><span class="r-l sync-l s-${esc(cloud.status)}"><i></i>${esc(syncText())}</span></div>
+      ${native ? `<p class="note">${esc(t('bgNote'))}</p>` : ''}
+      <div class="row btns"><button class="btn sm" data-act="sign-out-ask">${icon('logout')}${esc(t('signOut'))}</button></div>
+    </section>`;
+  }
+  const busy = ui.signingIn;
+  return `${head}<section class="card set acct">
+    <p class="note">${esc(t('accountPitch'))}</p>
+    <div class="row btns"><button class="btn primary sm" data-act="sign-in" ${busy ? 'disabled' : ''}>${icon('user')}${esc(busy ? t('signingIn') : t('signInGoogle'))}</button></div>
+  </section>`;
+}
+
+/** Notifications are off: say what that costs and offer the fix (not on the web once the browser said no). */
+function notifBanner() {
+  if (ui.notif === 'granted' || ui.notif === 'unsupported') return '';
+  if (!native && ui.notif === 'denied') return '';
+  if (window.top !== window.self) return '';
+  return `<div class="banner is-warn">${icon('bellOff')}<div><span>${esc(t('notifOffBanner'))}</span></div>
+    <button class="btn sm primary" data-act="notif-ask">${esc(t('notifOnBtn'))}</button></div>`;
 }
 
 // ---------------------------------------------------------------- Today
@@ -224,7 +303,7 @@ function viewToday(now) {
   const greet = isToday ? `<span class="greet">${esc(hour < 12 ? t('greetMorning') : t('greetEvening'))}</span>` : '';
   const head = `<header class="bar">
       <div class="bar-title">${greet}<h1>${esc(title)}</h1><p class="sub">${esc(isToday ? sub : sub)}</p></div>
-      ${isToday ? '' : `<button class="btn sm" data-act="go-today">${esc(t('today'))}</button>`}
+      <div class="bar-end">${isToday ? '' : `<button class="btn sm" data-act="go-today">${esc(t('today'))}</button>`}${syncChip()}</div>
     </header>`;
   const hasEx = state.tasks.some((x) => x.example && !x.deleted);
   const exBanner = hasEx ? `<div class="banner is-ex">${icon('sparkle')}<div><span>${esc(t('examples'))}</span></div>
@@ -240,7 +319,7 @@ function viewToday(now) {
       + sec('anytime', t('sAnytime'), groups.anytime)
       + sec('done', t('sDone'), groups.done, 'is-done')
     : `<div class="empty">${icon('today')}<p>${esc(t('emptyDay'))}</p><button class="btn primary" data-act="add">${icon('plus')}${esc(t('addTask'))}</button></div>`;
-  return `${head}${weekStrip()}${warn}${installBanner()}${summary}${exBanner}${body}<div class="spacer"></div>`;
+  return `${head}${weekStrip()}${warn}${notifBanner()}${installBanner()}${summary}${exBanner}${body}<div class="spacer"></div>`;
 }
 
 function dayCard(rows, past) {
@@ -412,6 +491,7 @@ function viewSettings() {
   const notif = ui.notif === 'granted';
   const errs = getErrors();
   return `<header class="bar"><div class="bar-title"><h1>${esc(t('settingsTitle'))}</h1><p class="sub">${esc(t('app'))} ${VERSION}</p></div></header>
+    ${accountCard()}
     <section class="card set">
       ${segRow(t('language'), 'set-lang', s.lang, [['ar', 'العربية'], ['en', 'English']])}
       ${segRow(t('appearance'), 'set-theme', s.theme, [['auto', t('themeAuto')], ['light', t('themeLight')], ['dark', t('themeDark')]])}
@@ -430,6 +510,13 @@ function viewSettings() {
         `<option value="${v}" ${Number(s.remind) === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
       <label class="row"><span class="r-l">${esc(t('nag'))}</span><input type="checkbox" class="sw-toggle" data-act="set-nag" ${s.nag ? 'checked' : ''}></label>
       <label class="row"><span class="r-l">${esc(t('sound'))}</span><input type="checkbox" class="sw-toggle" data-act="set-sound" ${s.sound ? 'checked' : ''}></label>
+      <div class="row"><label class="r-l" for="morning-on">${esc(t('morningRow'))}</label>
+        <span class="row-ctl"><input type="time" id="morning-at" class="in sm t-in num" data-act="set-morning-at" value="${esc(s.morningAt || '08:00')}" aria-label="${esc(t('morningRow'))}" ${s.morning ? '' : 'disabled'}>
+        <input type="checkbox" id="morning-on" class="sw-toggle" data-act="set-morning" ${s.morning ? 'checked' : ''}></span></div>
+      <div class="row"><label class="r-l" for="evening-on">${esc(t('eveningRow'))}</label>
+        <span class="row-ctl"><input type="time" id="evening-at" class="in sm t-in num" data-act="set-evening-at" value="${esc(s.eveningAt || '21:00')}" aria-label="${esc(t('eveningRow'))}" ${s.evening ? '' : 'disabled'}>
+        <input type="checkbox" id="evening-on" class="sw-toggle" data-act="set-evening" ${s.evening ? 'checked' : ''}></span></div>
+      <p class="note">${esc(t('digestNote'))}</p>
     </section>
     <h3 class="g-h">${esc(t('focusSettings'))}</h3>
     <section class="card set">
@@ -510,7 +597,9 @@ export function refreshSheet() {
   const s = ui.sheet;
   if (!s) return;
   const box = $('#sheet-in');
-  const builders = { edit: sheetEdit, detail: sheetDetail, del: sheetDelete, snooze: sheetSnooze, paste: sheetPaste, reset: sheetReset };
+  const builders = {
+    edit: sheetEdit, detail: sheetDetail, del: sheetDelete, snooze: sheetSnooze, paste: sheetPaste, reset: sheetReset, signout: sheetSignOut,
+  };
   if (s.type === 'edit' && box.querySelector('form')) return; // keep what the user is typing
   box.innerHTML = (builders[s.type] || (() => ''))(s);
 }
@@ -655,6 +744,11 @@ function sheetPaste() {
 function sheetReset() {
   return `<div class="confirm"><h2 class="s-h">${esc(t('resetAll'))}</h2><p class="note">${esc(t('resetAsk'))}</p>
     <div class="s-foot"><button class="btn" data-act="sheet-close">${esc(t('cancel'))}</button><button class="btn danger" data-act="reset-go">${esc(t('yesDelete'))}</button></div></div>`;
+}
+
+function sheetSignOut() {
+  return `<div class="confirm"><h2 class="s-h">${esc(t('signOutAsk'))}</h2><p class="note">${esc(t('signOutNote'))}</p>
+    <div class="s-foot"><button class="btn" data-act="sheet-close">${esc(t('cancel'))}</button><button class="btn danger" data-act="sign-out">${icon('logout')}${esc(t('signOut'))}</button></div></div>`;
 }
 
 // ---------------------------------------------------------------- toasts

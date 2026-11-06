@@ -267,6 +267,32 @@ export function plannedAlerts(state, now, todayK, horizon = 7) {
     .sort((a, b) => a.at - b.at);
 }
 
+/**
+ * Daily summaries for the next `horizon` days (only for days that still have open tasks):
+ *   morning – at settings.morningAt: how many tasks the day has and the first timed one
+ *   evening – at settings.eveningAt: what is still open that day
+ * Today counts carried-over tasks too; later days only what is scheduled on them.
+ */
+export function digestPlan(state, now, todayK, horizon = 7) {
+  const s = state.settings || {};
+  const out = [];
+  for (let i = 0; i <= horizon; i++) {
+    const k = addDays(todayK, i);
+    const open = (k === todayK ? dayList(state, k, todayK) : scheduledOn(state, k)).filter((o) => !o.done);
+    if (!open.length) continue;
+    const timed = open.filter((o) => o.timed).sort((a, b) => a.due - b.due);
+    if (s.morning !== false && s.morningAt) {
+      const at = stamp(k, s.morningAt);
+      if (at > now) out.push({ kind: 'morning', at, date: k, count: open.length, first: timed[0] || null, id: nid(`morning|${k}`) });
+    }
+    if (s.evening !== false && s.eveningAt) {
+      const at = stamp(k, s.eveningAt);
+      if (at > now) out.push({ kind: 'evening', at, date: k, count: open.length, open, id: nid(`evening|${k}`) });
+    }
+  }
+  return out;
+}
+
 /** Countdown text: "1:05:09", "05:09", or "2d 3h". */
 export function span(ms, dayWord = 'd', hourWord = 'h') {
   const s = Math.max(0, Math.floor(ms / 1000));

@@ -60,10 +60,49 @@ edit(path.join(RES, 'values', 'strings.xml'), (s) => s
   .replace(/<string name="app_name">[^<]*<\/string>/, '<string name="app_name">ميعاد</string>')
   .replace(/<string name="title_activity_main">[^<]*<\/string>/, '<string name="title_activity_main">ميعاد</string>'));
 
-// 5) keyboard: resize the web view so the open field stays visible
-edit(path.join(APP, 'src/main/AndroidManifest.xml'), (s) => (s.includes('windowSoftInputMode')
+// 5) manifest
+edit(path.join(APP, 'src/main/AndroidManifest.xml'), (s) => {
+  // keyboard: resize the web view so the open field stays visible
+  if (!s.includes('windowSoftInputMode')) {
+    s = s.replace('android:launchMode="singleTask"', 'android:launchMode="singleTask"\n            android:windowSoftInputMode="adjustResize"');
+  }
+  // the background runner library asks for location; this app never uses it, so those permissions are removed
+  if (!s.includes('xmlns:tools')) {
+    s = s.replace('<manifest xmlns:android="http://schemas.android.com/apk/res/android"',
+      '<manifest xmlns:android="http://schemas.android.com/apk/res/android"\n    xmlns:tools="http://schemas.android.com/tools"');
+  }
+  if (!s.includes('ACCESS_FINE_LOCATION')) {
+    s = s.replace('<uses-permission android:name="android.permission.INTERNET" />', [
+      '<uses-permission android:name="android.permission.INTERNET" />',
+      '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />',
+      '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />',
+      '    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" tools:node="remove" />',
+    ].join('\n'));
+  }
+  // tapping a notification posted by the background check opens the app
+  if (!s.includes('.NOTIFICATION_CLICKED')) {
+    s = s.replace('<category android:name="android.intent.category.LAUNCHER" />\n            </intent-filter>', [
+      '<category android:name="android.intent.category.LAUNCHER" />',
+      '            </intent-filter>',
+      '            <intent-filter>',
+      '                <action android:name=".NOTIFICATION_CLICKED" />',
+      '                <category android:name="android.intent.category.DEFAULT" />',
+      '            </intent-filter>',
+    ].join('\n'));
+  }
+  return s;
+});
+
+// 5b) Google sign-in: include the native Google SDKs of the sign-in plugin
+edit('android/variables.gradle', (s) => (s.includes('rgcfaIncludeGoogle')
   ? s
-  : s.replace('android:launchMode="singleTask"', 'android:launchMode="singleTask"\n            android:windowSoftInputMode="adjustResize"')));
+  : s.replace(/ext \{\n/, 'ext {\n    rgcfaIncludeGoogle = true\n')));
+
+// 5c) background runner: its JavaScript engine ships as a local .aar
+edit(path.join(APP, 'build.gradle'), (s) => (s.includes('background-runner/android/src/main/libs')
+  ? s
+  : s.replace("dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'",
+    "dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'\n        dirs '../../node_modules/@capacitor/background-runner/android/src/main/libs', 'libs'")));
 
 // 6) version + release signing from environment variables
 edit(path.join(APP, 'build.gradle'), (s) => {

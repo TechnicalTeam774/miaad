@@ -78,6 +78,10 @@ export async function setupNative(labels, onAction) {
       id: 'miaad_focus', name: labels.channelFocus, description: labels.channelFocus,
       importance: 4, visibility: 1, vibration: true,
     });
+    await LocalNotifications.createChannel({
+      id: 'miaad_daily', name: labels.channelDaily, description: labels.channelDaily,
+      importance: 3, visibility: 1, vibration: false,
+    });
     await LocalNotifications.registerActionTypes({
       types: [{ id: 'TASK', actions: [{ id: 'done', title: labels.done }, { id: 'snooze', title: labels.snooze }] }],
     });
@@ -95,6 +99,12 @@ export async function setupNative(labels, onAction) {
 
 let syncTimer = null;
 let lastSig = '';
+let scheduledHook = null;
+
+/** Called with [[id, at], ...] after the native plan is (re)scheduled. */
+export function onScheduled(fn) {
+  scheduledHook = fn;
+}
 
 /** Debounced: replace every pending native notification with the current plan. */
 export function syncNative(getPlan) {
@@ -129,6 +139,7 @@ async function doSync(plan) {
     }));
     if (list.length) await LocalNotifications.schedule({ notifications: list });
     lastSig = sig;
+    if (scheduledHook) scheduledHook(plan.slice(0, 64).map((a) => [a.id, a.at]));
   } catch (e) {
     logError('schedule', e);
   }

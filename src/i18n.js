@@ -168,6 +168,43 @@ const AR = {
   install: 'ثبّت ميعاد على الشاشة الرئيسية',
   previewTitle: 'دي نسخة تجربة',
   previewNote: 'البيانات هنا ممكن تتمسح. ثبّت ميعاد من رابط GitHub بتاعك عشان تحفظ مهامك وتوصلك التنبيهات.',
+  // account and sync
+  welcomeTitle: 'أهلاً بيك في ميعاد',
+  welcomeSub: 'مهامك بمواعيدها، وعدّ تنازلي لكل مهمة، وتنبيه قبل الميعاد.',
+  welcomeSync: 'ادخل بحساب جوجل عشان مهامك تتحفظ وتظهر على الموبايل واللاب توب.',
+  welcomePoints: ['مهامك متحفوظة في حسابك، ومش بتضيع لو غيّرت الموبايل', 'أي حاجة تضيفها على جهاز تظهر على التاني', 'كل واحد بيشوف مهامه هو بس'],
+  signInGoogle: 'الدخول بحساب جوجل',
+  signingIn: 'بيدخل…',
+  skipSignIn: 'كمّل من غير حساب',
+  skipNote: 'مهامك هتفضل على الجهاز ده بس. تقدر تدخل بحسابك بعدين من الإعدادات.',
+  signedIn: (who) => `دخلت بحساب ${who}`,
+  signInFail: 'الدخول مكملش. اتأكد من النت وجرّب تاني.',
+  account: 'الحساب',
+  accountPitch: 'ادخل بحساب جوجل عشان مهامك تتحفظ وتتزامن بين الموبايل واللاب توب.',
+  syncLoading: 'بيجهّز المزامنة…',
+  syncSyncing: 'بيحفظ…',
+  syncSynced: 'متزامن',
+  syncOffline: 'مفيش إنترنت. هيتزامن أول ما النت يرجع.',
+  syncError: 'المزامنة واقفة. اقفل التطبيق وافتحه تاني.',
+  signOut: 'تسجيل الخروج',
+  signOutAsk: 'تخرج من الحساب؟',
+  signOutNote: 'مهامك هتتمسح من الجهاز ده بس. هي محفوظة في حسابك، وهترجع أول ما تدخل تاني.',
+  signingOut: 'بيخرج…',
+  // daily summaries
+  dailyChannel: 'ملخص اليوم',
+  morningTitle: 'صباح الخير',
+  morningBody: (n) => `النهارده عندك ${n}.`,
+  morningBodyFirst: (n, title, time) => `النهارده عندك ${n}. أولها «${title}» الساعة ${time}.`,
+  eveningTitle: (n) => `لسه فاضل ${n} النهارده`,
+  eveningMore: (names, more) => `${names} و${more} كمان`,
+  q: (s) => `«${s}»`,
+  sep: '، ',
+  morningRow: 'ملخص الصبح',
+  eveningRow: 'تذكير آخر اليوم',
+  digestNote: 'الصبح بيوصلك ملخص بمهام اليوم، وبالليل تذكير باللي لسه مخلصتش.',
+  bgNote: 'الموبايل بيشيّك على المهام الجديدة من أجهزتك التانية كل ربع ساعة تقريباً، حتى لو التطبيق مقفول.',
+  notifOffBanner: 'التنبيهات مقفولة، فمش هيوصلك تذكير بمواعيدك.',
+  notifOnBtn: 'شغّلها',
   installIOS: 'من سفاري: زرار المشاركة ثم «إضافة إلى الشاشة الرئيسية».',
   installAndroid: 'من كروم: القائمة ⋮ ثم «تثبيت التطبيق».',
   installBtn: 'ثبّت',
@@ -356,6 +393,43 @@ const EN = {
   install: 'Install Miaad on your home screen',
   previewTitle: 'Preview copy',
   previewNote: 'Data here can be cleared. Install Miaad from your GitHub link to keep your tasks and get alerts.',
+  // account and sync
+  welcomeTitle: 'Welcome to Miaad',
+  welcomeSub: 'Your tasks on time, a countdown for each one, and a reminder before it is due.',
+  welcomeSync: 'Sign in with Google to keep your tasks safe and see them on your phone and laptop.',
+  welcomePoints: ['Your tasks are saved in your account, even if you change phones', 'Anything you add on one device shows up on the other', 'Everyone sees only their own tasks'],
+  signInGoogle: 'Sign in with Google',
+  signingIn: 'Signing in…',
+  skipSignIn: 'Continue without an account',
+  skipNote: 'Your tasks stay on this device only. You can sign in later from Settings.',
+  signedIn: (who) => `Signed in as ${who}`,
+  signInFail: 'Sign-in did not finish. Check your connection and try again.',
+  account: 'Account',
+  accountPitch: 'Sign in with Google to keep your tasks safe and in sync between your phone and laptop.',
+  syncLoading: 'Getting sync ready…',
+  syncSyncing: 'Saving…',
+  syncSynced: 'In sync',
+  syncOffline: 'No internet. Changes will sync when you are back online.',
+  syncError: 'Sync stopped. Close the app and open it again.',
+  signOut: 'Sign out',
+  signOutAsk: 'Sign out?',
+  signOutNote: 'Your tasks will be removed from this device only. They stay in your account and come back when you sign in again.',
+  signingOut: 'Signing out…',
+  // daily summaries
+  dailyChannel: 'Daily summary',
+  morningTitle: 'Good morning',
+  morningBody: (n) => `You have ${n} today.`,
+  morningBodyFirst: (n, title, time) => `You have ${n} today. First: “${title}” at ${time}.`,
+  eveningTitle: (n) => `${n} still open today`,
+  eveningMore: (names, more) => `${names} and ${more} more`,
+  q: (s) => `“${s}”`,
+  sep: ', ',
+  morningRow: 'Morning summary',
+  eveningRow: 'End-of-day reminder',
+  digestNote: 'A summary of the day in the morning, and a reminder at night of what is still open.',
+  bgNote: 'Your phone checks for new tasks from your other devices about every 15 minutes, even when the app is closed.',
+  notifOffBanner: 'Notifications are off, so you will not get reminders for your tasks.',
+  notifOnBtn: 'Turn on',
   installIOS: 'In Safari: Share, then “Add to Home Screen”.',
   installAndroid: 'In Chrome: menu ⋮, then “Install app”.',
   installBtn: 'Install',
@@ -417,6 +491,15 @@ export function relDay(k, todayK, addDays) {
 }
 
 /** "12 د", "1 س 5 د", "2 ي 3 س" */
+/** "مهمة واحدة / مهمتين / 3 مهام / 11 مهمة" or "1 task / 3 tasks". */
+export function nTasks(n) {
+  if (lang() === 'en') return n === 1 ? '1 task' : `${n} tasks`;
+  if (n === 1) return 'مهمة واحدة';
+  if (n === 2) return 'مهمتين';
+  if (n >= 3 && n <= 10) return `${n} مهام`;
+  return `${n} مهمة`;
+}
+
 export function fmtDur(ms) {
   const mins = Math.max(0, Math.round(ms / 60000));
   const d = Math.floor(mins / 1440);

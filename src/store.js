@@ -17,7 +17,14 @@ export const DEFAULT_SETTINGS = {
   breakMin: 5,
   sound: true,
   installHint: true,
+  morning: true, // daily summary notification
+  morningAt: '08:00',
+  evening: true, // end-of-day reminder of what is still open
+  eveningAt: '21:00',
 };
+
+// settings that stay on this device only (everything else follows the account)
+const DEVICE_ONLY = ['installHint'];
 
 function fresh() {
   return {
@@ -29,7 +36,8 @@ function fresh() {
     focus: [],
     timer: null,
     settings: { ...DEFAULT_SETTINGS },
-    meta: { created: new Date().toISOString(), seeded: false },
+    // welcomed: the first-run sign-in screen was answered; syncUid: the account this device mirrors
+    meta: { created: new Date().toISOString(), seeded: false, welcomed: false, syncUid: null },
   };
 }
 
@@ -221,6 +229,80 @@ export function focusFor(occKey) {
   return state.focus.filter((f) => f.occ === occKey).reduce((a, f) => a + f.mins, 0);
 }
 
+// ---------------------------------------------------------------- sync support
+// The cloud copy is a normalized view of the state: maps keyed by id, without examples or device-only data.
+
+/** Stable id of a focus log entry. */
+export const focusId = (f) => `f${f.at}`;
+
+/** Normalized synced view of a state: { tasks, done, skip, shift, focus, settings }. */
+export function syncedView(s = state) {
+  const example = new Set(s.tasks.filter((t) => t.example).map((t) => t.id));
+  const tasks = {};
+  for (const t of s.tasks) if (!t.example) tasks[t.id] = t;
+  const keep = (map) => {
+    const out = {};
+    for (const [k, v] of Object.entries(map || {})) if (!example.has(splitKey(k)[0])) out[k] = v;
+    return out;
+  };
+  const focus = {};
+  for (const f of s.focus || []) focus[focusId(f)] = f;
+  const settings = {};
+  for (const [k, v] of Object.entries(s.settings || {})) if (!DEVICE_ONLY.includes(k)) settings[k] = v;
+  return { tasks, done: keep(s.done), skip: keep(s.skip), shift: keep(s.shift), focus, settings };
+}
+
+/** Replace the synced parts of the state with the cloud copy (timer, device settings and meta stay). */
+export function applyRemote(view) {
+  const tasks = Object.values(view.tasks || {});
+  tasks.sort((a, b) => (a.created || '').localeCompare(b.created || '') || String(a.id).localeCompare(String(b.id)));
+  state.tasks = tasks;
+  state.done = { ...(view.done || {}) };
+  state.skip = { ...(view.skip || {}) };
+  state.shift = { ...(view.shift || {}) };
+  state.focus = Object.values(view.focus || {}).sort((a, b) => a.at - b.at);
+  if (view.settings && Object.keys(view.settings).length) {
+    const local = {};
+    for (const k of DEVICE_ONLY) local[k] = state.settings[k];
+    state.settings = { ...DEFAULT_SETTINGS, ...view.settings, ...local };
+  }
+  save();
+}
+
+/** First sign-in on a device: keep everything from both sides (ids are unique per device). */
+export function mergeViews(local, remote) {
+  const pick = (a, b) => {
+    // same task on both sides: the later edit wins
+    const ta = a.updated || a.created || '';
+    const tb = b.updated || b.created || '';
+    return tb > ta ? b : a;
+  };
+  const tasks = { ...remote.tasks };
+  for (const [id, t] of Object.entries(local.tasks)) tasks[id] = tasks[id] ? pick(t, tasks[id]) : t;
+  const union = (a, b) => ({ ...a, ...b });
+  const hasRemoteSettings = remote.settings && Object.keys(remote.settings).length > 0;
+  return {
+    tasks,
+    done: union(local.done, remote.done),
+    skip: union(local.skip, remote.skip),
+    shift: union(local.shift, remote.shift),
+    focus: union(local.focus, remote.focus),
+    settings: hasRemoteSettings ? remote.settings : local.settings,
+  };
+}
+
+/** Sign-out: nothing of the account stays on the device. */
+export function wipeLocal() {
+  const keepLang = state.settings.lang;
+  const next = fresh();
+  next.settings.lang = keepLang;
+  next.meta.seeded = true;
+  for (const k of Object.keys(state)) delete state[k];
+  Object.assign(state, next);
+  save();
+  flush();
+}
+
 // ---------------------------------------------------------------- backup
 export function exportJSON() {
   return JSON.stringify({ app: 'miaad', exported: new Date().toISOString(), data: state }, null, 1);
@@ -231,6 +313,10 @@ export function importJSON(text) {
   const data = obj && obj.app === 'miaad' ? obj.data : obj;
   if (!data || !Array.isArray(data.tasks)) throw new Error('bad backup');
   const next = migrate(data);
+  // the account link belongs to this device, not to the backup
+  next.meta.syncUid = state.meta.syncUid;
+  next.meta.welcomed = state.meta.welcomed;
+  next.timer = null;
   for (const k of Object.keys(state)) delete state[k];
   Object.assign(state, next);
   save();
@@ -242,6 +328,8 @@ export function resetAll() {
   const next = fresh();
   next.settings.lang = keepLang;
   next.meta.seeded = true;
+  next.meta.syncUid = state.meta.syncUid;
+  next.meta.welcomed = state.meta.welcomed;
   for (const k of Object.keys(state)) delete state[k];
   Object.assign(state, next);
   save();
